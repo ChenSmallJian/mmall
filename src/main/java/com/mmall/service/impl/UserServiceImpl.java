@@ -157,6 +157,7 @@ public class UserServiceImpl implements IUserService {
         }
         User updateUser = new User();
         updateUser.setId(user.getId());
+        updateUser.setUsername(user.getUsername());
         updateUser.setEmail(user.getEmail());
         updateUser.setPhone(user.getPhone());
         updateUser.setQuestion(user.getQuestion());
@@ -176,6 +177,20 @@ public class UserServiceImpl implements IUserService {
         }
         user.setPassword(StringUtils.EMPTY);
         return ServerResponse.createBySuccessMessage(user);
+    }
+
+    // backend
+
+    /**
+     *  校验当前用户是否为管理员
+     * @param user
+     * @return
+     */
+    public ServerResponse checkAdminRole(User user){
+        if(user != null && user.getRole().intValue() == Const.Role.ROLE_ADMIN){
+            return ServerResponse.createBySuccess();
+        }
+        return ServerResponse.createByError();
     }
 
 }

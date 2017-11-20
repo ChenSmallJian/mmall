@@ -6,9 +6,7 @@ import com.mmall.common.ServerResponse;
 import com.mmall.pojo.User;
 import com.mmall.service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpRequest;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -39,9 +37,6 @@ public class UserController {
                                       String password,
                                       HttpSession session) {
         // service --> mybatis --> dao
-        System.out.println(username+","+password);
-//        username="admin";
-//        password="admin";
         ServerResponse<User> response = iUserService.login(username, password);
         if (response.isSuccess()) {
             session.setAttribute(Const.CURRENT_USER, response.getData());
@@ -126,6 +121,7 @@ public class UserController {
     @RequestMapping(value = "forget_check_answer.do", method = RequestMethod.POST)
     @ResponseBody
     public ServerResponse<String> forgetCheckAnswer(String username, String question, String answer) {
+        System.out.println(username+","+question+","+answer);
         return iUserService.checkAnswer(username, question, answer);
     }
 
