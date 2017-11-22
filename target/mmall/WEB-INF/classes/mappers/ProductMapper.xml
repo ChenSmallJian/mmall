@@ -203,4 +203,19 @@
         <!--AND id = #{ProductId}-->
         <!--</if>-->
     </select>
+    <select id="selectByNameAndCategoryIds" resultMap="BaseResultMap" parameterType="map">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM mmall_product
+        WHERE  status = 1
+        <if test="productName != null">
+            AND NAME LIKE #{productName}
+        </if>
+        <if test="catagoryList != null">
+            AND categoryId IN
+            <foreach collection="catagoryList" item="item" index = "index" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+    </select>
 </mapper>

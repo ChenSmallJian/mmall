@@ -27,7 +27,7 @@ import java.util.Map;
  * created by chenjian
  */
 @Controller
-@RequestMapping("/manage/product")
+@RequestMapping("/manage/product/")
 public class ProductManageController {
 
     @Autowired
@@ -106,6 +106,14 @@ public class ProductManageController {
         }
     }
 
+    /**
+     * 商品列表
+     *
+     * @param session
+     * @param pageNum
+     * @param pageSize
+     * @return
+     */
     @RequestMapping("get_list.do")
     @ResponseBody
     public ServerResponse getList(HttpSession session,
@@ -182,6 +190,15 @@ public class ProductManageController {
         }
     }
 
+    /**
+     * 富文本文件上传到FTP服务器
+     *
+     * @param session
+     * @param file
+     * @param request
+     * @param response
+     * @return
+     */
     @RequestMapping("rich_text_image_upload.do")
     @ResponseBody
     public Map RichTextImageUpload(HttpSession session, @RequestParam(value = "upload_file", required = false) MultipartFile file, HttpServletRequest request, HttpServletResponse response) {
@@ -212,7 +229,7 @@ public class ProductManageController {
             resultMap.put("success", true);
             resultMap.put("msg", "上传成功");
             resultMap.put("file_path", url);
-            response.addHeader("Access-Control-Allow-Headers","X-File-Name");
+            response.addHeader("Access-Control-Allow-Headers", "X-File-Name");
             return resultMap;
         } else {
             resultMap.put("success", false);

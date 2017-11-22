@@ -20,7 +20,7 @@ import java.util.List;
  * created by chenjian
  */
 @Controller
-@RequestMapping("/manage/category")
+@RequestMapping("/manage/category/")
 public class CategoryManageController {
 
     @Autowired
@@ -113,7 +113,7 @@ public class CategoryManageController {
      */
     @RequestMapping("get_category_and_deep_children_category.do")
     @ResponseBody
-    public ServerResponse<List<Category>> getCategoryAndDeepChildrenCategory(HttpSession session,
+    public ServerResponse<List<Integer>> getCategoryAndDeepChildrenCategory(HttpSession session,
                                                                              @RequestParam(value = "categoryId", defaultValue = "0") Integer categoryId){
         User user = (User) session.getAttribute(Const.CURRENT_USER);
         if (user == null) {
