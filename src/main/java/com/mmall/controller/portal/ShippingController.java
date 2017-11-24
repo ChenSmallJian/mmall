@@ -92,6 +92,13 @@ public class ShippingController {
         return iShippingService.select(user.getId(), shippingId);
     }
 
+    /**
+     * 查询收货地址列表
+     * @param pageNum
+     * @param pageSize
+     * @param session
+     * @return
+     */
     @RequestMapping("list.do")
     @ResponseBody
     public ServerResponse<PageInfo> list(@RequestParam(value = "pageNum", defaultValue = "1") int pageNum,
