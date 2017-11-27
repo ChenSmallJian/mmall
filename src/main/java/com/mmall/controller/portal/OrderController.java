@@ -34,6 +34,22 @@ public class OrderController {
     @Autowired
     private IOrderService iOrderService;
 
+    @RequestMapping("create.do")
+    @ResponseBody
+    public ServerResponse create(HttpSession session, Integer shippingId) {
+        User user = (User) session.getAttribute(Const.CURRENT_USER);
+        if (user == null) {
+            return ServerResponse.createByErrorCodeMessage(ResponseCode.NEED_LOGIN.getCode(), ResponseCode.NEED_LOGIN.getDesc());
+        }
+        String path = request.getSession().getServletContext().getRealPath("upload");
+        return iOrderService.pay(orderNo, user.getId(), path);
+    }
+
+
+
+
+
+
     /**
      * 二维码支付
      *

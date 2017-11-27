@@ -14,17 +14,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.mmall.common.Const;
 import com.mmall.common.ServerResponse;
-import com.mmall.dao.OrderItemMapper;
-import com.mmall.dao.OrderMapper;
-import com.mmall.dao.PayInfoMapper;
-import com.mmall.pojo.Order;
-import com.mmall.pojo.OrderItem;
-import com.mmall.pojo.PayInfo;
+import com.mmall.dao.*;
+import com.mmall.pojo.*;
 import com.mmall.service.IOrderService;
 import com.mmall.util.BigDecimalUtil;
 import com.mmall.util.DateTimeUtil;
 import com.mmall.util.FTPUtil;
 import com.mmall.util.PropertiesUtil;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +30,11 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * created by chenjian
@@ -46,6 +45,9 @@ public class OrderServiceImpl implements IOrderService {
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
     @Autowired
+    private CartMapper cartMapper;
+
+    @Autowired
     private PayInfoMapper payInfoMapper;
 
     @Autowired
@@ -53,6 +55,129 @@ public class OrderServiceImpl implements IOrderService {
 
     @Autowired
     private OrderItemMapper orderItemMapper;
+
+    @Autowired
+    private ProductMapper productMapper;
+
+    public ServerResponse createOrder(Integer userId, Integer shippingId) {
+        // 从购物车中获取已勾选的商品
+        List<Cart> cartList = cartMapper.selectCheckedCartByUserId(userId);
+
+        // 计算当前选中商品的总价
+        ServerResponse serverResponse = getCartOrderItem(userId, cartList);
+        if (!serverResponse.isSuccess()) {
+            return serverResponse;
+        }
+        List<OrderItem> orderItemList = (List<OrderItem>) serverResponse.getData();
+        BigDecimal payment = this.getOrderTotalPrice(orderItemList);
+
+        // 生成订单
+        Order order = this.assembleOrder(userId, shippingId, payment);
+        if(order == null){
+            return ServerResponse.createByErrorMessage("生成订单错误");
+        }
+        if(CollectionUtils.isEmpty(orderItemList)){
+            return ServerResponse.createByErrorMessage("购物车为空");
+        }
+        // 给OrderItem加上订单号
+        for(OrderItem orderItem : orderItemList){
+            orderItem.setOrderNo(order.getOrderNo());
+        }
+        // mybatis批量插入
+        orderItemMapper.batchInsert(orderItemList);
+        // 生成成功，我们需要减少我们的库存
+        this.reduceProductStock(orderItemList);
+        // 清空购物车中选中的商品
+        this.clearCart(cartList);
+
+        // 返回前端数据
+
+    }
+
+    private void clearCart(List<Cart> cartList){
+        for(Cart cart : cartList){
+            cartMapper.deleteByPrimaryKey(cart.getId());
+        }
+    }
+
+    private void reduceProductStock(List<OrderItem> orderItemList){
+        for(OrderItem orderItem : orderItemList){
+            Product product = productMapper.selectByPrimaryKey(orderItem.getProductId());
+            product.setStock(product.getStock()-orderItem.getQuantity());
+            productMapper.updateByPrimaryKeySelective(product);
+        }
+    }
+
+    private Order assembleOrder(Integer userId, Integer shippingId, BigDecimal payment) {
+        Order order = new Order();
+        long orderNo = this.generateOrderNo();
+
+        order.setOrderNo(orderNo);
+        order.setUserId(userId);
+        order.setShippingId(shippingId);
+        order.setPayment(payment);
+        // 支付状态为未付款
+        order.setStatus(Const.OrderStatusEnum.NO_PAY.getCode());
+        // 运费
+        order.setPostage(0);
+        order.setPaymentType(Const.PaymentTypeEnum.ONLINE_PAY.getCode());
+        // 发货时间
+        // 付款时间
+        int rowCount = orderMapper.insertSelective(order);
+        if (rowCount > 0) {
+            return order;
+        }
+        return null;
+    }
+
+    private long generateOrderNo() {
+        long currentTime = System.currentTimeMillis();
+        return currentTime + new Random().nextInt(100);
+    }
+
+    private BigDecimal getOrderTotalPrice(List<OrderItem> orderItemList) {
+        BigDecimal payment = new BigDecimal("0");
+        for (OrderItem orderItem : orderItemList) {
+            payment = BigDecimalUtil.add(payment.doubleValue(), orderItem.getTotalPrice().doubleValue());
+        }
+        return payment;
+    }
+
+    private ServerResponse getCartOrderItem(Integer userId, List<Cart> cartList) {
+        List<OrderItem> orderItemList = Lists.newArrayList();
+        if (CollectionUtils.isEmpty(cartList)) {
+            return ServerResponse.createByErrorMessage("购物车为空");
+        }
+        // 检验购物车的数据，包括状态和数量
+        for (Cart cart : cartList) {
+            OrderItem orderItem = new OrderItem();
+
+            // 获取购物车中选中的所有商品，判断选中的商品是否下架
+            Product product = productMapper.selectByPrimaryKey(cart.getProductId());
+            // 如果商品不是在售状态
+            if (Const.ProductStatusEnum.ON_SALE.getCode() != product.getStatus()) {
+                return ServerResponse.createByErrorMessage("商品" + product.getName() + "不是在售状态");
+            }
+            //检验库存
+            if (cart.getQuantity() > product.getStock()) {
+                return ServerResponse.createByErrorMessage("商品" + product.getName() + "商品库存不足");
+            }
+            // 到此检验通过，表明可以参与生成订单，接下来就是将该选中商品组装成订单中的一个订单详情对象
+
+            orderItem.setUserId(userId);
+            orderItem.setProductId(product.getId());
+            orderItem.setProductName(product.getName());
+            orderItem.setProductImage(product.getMainImage());
+            orderItem.setCurrentUnitPrice(product.getPrice());
+            orderItem.setQuantity(cart.getQuantity());
+            orderItem.setTotalPrice(BigDecimalUtil.mul(product.getPrice().doubleValue(), cart.getQuantity().doubleValue()));
+
+            orderItemList.add(orderItem);
+        }
+        return ServerResponse.createBySuccessMessage(orderItemList);
+
+    }
+
 
     public ServerResponse pay(Long orderNO, Integer userId, String path) {
         Map<String, String> resultMap = Maps.newHashMap();
@@ -189,7 +314,7 @@ public class OrderServiceImpl implements IOrderService {
         }
     }
 
-    public ServerResponse aliCallBack(Map<String,String> params){
+    public ServerResponse aliCallBack(Map<String, String> params) {
         // 获取订单号
         Long orderNo = Long.parseLong(params.get("out_trade_no"));
         String tradeNO = params.get("trade_no");
@@ -197,15 +322,15 @@ public class OrderServiceImpl implements IOrderService {
 
         // 订单是否存在
         Order order = orderMapper.selectByOrderNo(orderNo);
-        if(order == null){
+        if (order == null) {
             return ServerResponse.createByErrorMessage("非本商城订单，回调忽略");
         }
         // 订单是否已经完成过
-        if(order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()){
+        if (order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()) {
             return ServerResponse.createBySuccessMessage("支付宝重复调用");
         }
         // 如果交易成功
-        if(Const.AlipayCallback.TRADE_STATUS_TRADE_SUCCESS.equals(tradeStatus)){
+        if (Const.AlipayCallback.TRADE_STATUS_TRADE_SUCCESS.equals(tradeStatus)) {
             order.setPaymentTime(DateTimeUtil.strToDate(params.get("gmt_payment")));
             // 就把订单状态置为已付款
             order.setStatus(Const.OrderStatusEnum.PAID.getCode());
@@ -225,13 +350,13 @@ public class OrderServiceImpl implements IOrderService {
         return ServerResponse.createBySuccess();
     }
 
-    public ServerResponse<Boolean> queryOrderPayStatus(Integer userId, Long orderNo){
-        Order order = orderMapper.selectByUserIdAndOrderNo(orderNo,userId);
+    public ServerResponse<Boolean> queryOrderPayStatus(Integer userId, Long orderNo) {
+        Order order = orderMapper.selectByUserIdAndOrderNo(orderNo, userId);
         if (order == null) {
             return ServerResponse.createByErrorMessage("查询不到该订单");
         }
         // 订单是否已经完成过
-        if(order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()){
+        if (order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()) {
             return ServerResponse.createBySuccess();
         }
         return ServerResponse.createByError();

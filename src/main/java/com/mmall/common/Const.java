@@ -80,8 +80,27 @@ public class Const {
 
     public enum PayPlatformEnum{
         ALIPAY("支付宝",1);
-        ;
         PayPlatformEnum(String value, int code) {
+            this.value = value;
+            this.code = code;
+        }
+
+        private String value;
+        private int code;
+
+        public String getValue() {
+            return value;
+        }
+
+        public int getCode() {
+            return code;
+        }
+    }
+
+    public enum PaymentTypeEnum{
+        ONLINE_PAY("在线支付",1)
+        ;
+        PaymentTypeEnum(String value, int code) {
             this.value = value;
             this.code = code;
         }
